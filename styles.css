@@ -29,6 +29,48 @@ body {
     auto;
 }
 
+.soundcloud-audio-container {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.soundcloud-audio-container iframe {
+  width: 1px;
+  height: 1px;
+  border: 0;
+}
+
+.mac-navbar-sound-btn {
+  width: auto;
+  height: auto;
+  border: 0;
+  background: transparent;
+  color: #000;
+  font-family: var(--retro-ui-font);
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+  margin: 0 8px 0 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.mac-navbar-sound-btn:hover {
+  opacity: 0.8;
+}
+
+.mac-navbar-sound-btn:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: 1px;
+}
+
 .mac-navbar {
   position: fixed;
   top: 0;
@@ -79,6 +121,13 @@ body {
   text-overflow: ellipsis;
 }
 
+.mac-navbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
 .mac-navbar-time {
   flex: 0 0 auto;
   min-width: 46px;
@@ -93,6 +142,7 @@ body {
   position: absolute;
   top: var(--mac-navbar-height);
   left: 0;
+  z-index: 1;
   width: 100vw;
   height: calc(100vh - var(--mac-navbar-height));
   margin: 0;

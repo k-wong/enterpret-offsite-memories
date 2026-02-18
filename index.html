@@ -7,6 +7,15 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body class="video-page">
+    <div class="soundcloud-audio-container" aria-hidden="true">
+      <iframe
+        id="soundcloud-player"
+        src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/soundcloud%253Atracks%253A472694880&color=%23ff5500&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false&visual=false"
+        allow="autoplay"
+        tabindex="-1"
+      ></iframe>
+    </div>
+
     <header class="mac-navbar" role="banner">
       <div class="mac-navbar-left">
         <img
@@ -16,7 +25,12 @@
         />
         <div class="mac-navbar-menu" aria-label="Page title">Enterpret Phuket Offsite 2026</div>
       </div>
-      <div class="mac-navbar-time" id="mac-navbar-time" aria-live="polite">00:00</div>
+      <div class="mac-navbar-right">
+        <button id="enable-sound-btn" class="mac-navbar-sound-btn" type="button" aria-label="Enable background video sound">
+          ▶
+        </button>
+        <div class="mac-navbar-time" id="mac-navbar-time" aria-live="polite">00:00</div>
+      </div>
     </header>
 
     <pre id="ascii-bg" aria-hidden="true">Loading ASCII video background...</pre>

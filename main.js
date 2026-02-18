@@ -157,5 +157,89 @@ function initNavbarClock() {
   tick();
 }
 
+// SoundCloud widget integration
+const SOUNDCLOUD_WIDGET_API_SRC = "https://w.soundcloud.com/player/api.js";
+let soundcloudWidget = null;
+let soundButton = null;
+let isSoundcloudWidgetReady = false;
+let pendingManualSoundEnable = false;
+
+function tryEnableSound() {
+  if (!soundcloudWidget || !isSoundcloudWidgetReady) {
+    pendingManualSoundEnable = true;
+    return;
+  }
+
+  try {
+    // Must run from user click context for browser autoplay policies.
+    soundcloudWidget.play();
+    soundcloudWidget.setVolume(100);
+  } catch (_error) {
+    return;
+  }
+
+  window.setTimeout(() => {
+    if (!soundcloudWidget || typeof soundcloudWidget.isPaused !== "function") {
+      return;
+    }
+    soundcloudWidget.isPaused((_isPaused) => {
+      // No state UI toggle requested; keep symbol minimal.
+    });
+  }, 300);
+}
+
+function initSoundCloudWidget() {
+  if (!window.SC || typeof window.SC.Widget !== "function") {
+    return;
+  }
+
+  const iframe = document.getElementById("soundcloud-player");
+  if (!iframe) {
+    return;
+  }
+
+  soundcloudWidget = window.SC.Widget(iframe);
+  soundcloudWidget.bind(window.SC.Widget.Events.READY, () => {
+    isSoundcloudWidgetReady = true;
+    if (pendingManualSoundEnable) {
+      pendingManualSoundEnable = false;
+      tryEnableSound();
+    }
+  });
+}
+
+function loadSoundCloudWidgetApi() {
+  if (window.SC && typeof window.SC.Widget === "function") {
+    initSoundCloudWidget();
+    return;
+  }
+
+  const existingScript = document.querySelector(`script[src="${SOUNDCLOUD_WIDGET_API_SRC}"]`);
+  if (existingScript) {
+    existingScript.addEventListener("load", initSoundCloudWidget, { once: true });
+    return;
+  }
+
+  const apiScript = document.createElement("script");
+  apiScript.src = SOUNDCLOUD_WIDGET_API_SRC;
+  apiScript.async = true;
+  apiScript.addEventListener("load", initSoundCloudWidget, { once: true });
+  document.head.appendChild(apiScript);
+}
+
+function initSoundButton() {
+  soundButton = document.getElementById("enable-sound-btn");
+  if (!soundButton) {
+    return;
+  }
+
+  soundButton.addEventListener("click", () => {
+    tryEnableSound();
+  });
+
+  loadSoundCloudWidgetApi();
+}
+
 initAsciiBackground();
 initNavbarClock();
+initSoundButton();
