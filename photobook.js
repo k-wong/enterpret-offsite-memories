@@ -2,8 +2,25 @@ const PHOTOBOOK_FOLDER_SELECTOR = ".desktop-folder-icon";
 const PHOTOBOOK_EXTENSIONS = /\.(avif|gif|jpe?g|png|webp)$/i;
 const PHOTOBOOK_MIN_THUMB_PERCENT = 8;
 
+function normalizePhotoFileName(fileName) {
+  if (typeof fileName !== "string") {
+    return "";
+  }
+  const normalized = fileName.trim().replace(/\?.*$/, "").replace(/#.*$/, "");
+  const segments = normalized
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment && segment !== "." && segment !== "..");
+  return segments.join("/");
+}
+
+function isSupportedPhotoFile(fileName) {
+  return PHOTOBOOK_EXTENSIONS.test(fileName);
+}
+
 function sortPhotoNamesAlphabetically(fileNames) {
-  return [...fileNames].sort((a, b) =>
+  const deduped = [...new Set(fileNames.map((fileName) => normalizePhotoFileName(fileName)).filter(Boolean))];
+  return deduped.sort((a, b) =>
     a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
   );
 }
@@ -22,12 +39,17 @@ function parseDirectoryListing(directoryHtml) {
     if (href.includes("../")) {
       continue;
     }
-    const decodedHref = decodeURIComponent(href);
+    let decodedHref = href;
+    try {
+      decodedHref = decodeURIComponent(href);
+    } catch (_error) {
+      // Keep raw href if URI decoding fails.
+    }
     if (decodedHref.endsWith("/")) {
       continue;
     }
-    const fileName = decodedHref.split("/").pop();
-    if (!fileName || !PHOTOBOOK_EXTENSIONS.test(fileName)) {
+    const fileName = normalizePhotoFileName(decodedHref.split("/").pop() || "");
+    if (!fileName || !isSupportedPhotoFile(fileName)) {
       continue;
     }
     files.push(fileName);
@@ -45,7 +67,7 @@ async function getPhotoFilesFromManifest() {
     return [];
   }
   return sortPhotoNamesAlphabetically(
-    manifestData.filter((entry) => typeof entry === "string" && PHOTOBOOK_EXTENSIONS.test(entry)),
+    manifestData.map((entry) => normalizePhotoFileName(entry)).filter(isSupportedPhotoFile),
   );
 }
 
@@ -61,8 +83,17 @@ async function getPhotoFilesFromDirectoryListing() {
 async function loadPhotobookFiles() {
   if (Array.isArray(window.PHOTOBOOK_FILES) && window.PHOTOBOOK_FILES.length) {
     return sortPhotoNamesAlphabetically(
-      window.PHOTOBOOK_FILES.filter((entry) => typeof entry === "string" && PHOTOBOOK_EXTENSIONS.test(entry)),
+      window.PHOTOBOOK_FILES.map((entry) => normalizePhotoFileName(entry)).filter(isSupportedPhotoFile),
     );
+  }
+
+  try {
+    const fromManifest = await getPhotoFilesFromManifest();
+    if (fromManifest.length) {
+      return fromManifest;
+    }
+  } catch (_error) {
+    // Manifest file is optional.
   }
 
   try {
@@ -72,15 +103,6 @@ async function loadPhotobookFiles() {
     }
   } catch (_error) {
     // Directory listing support depends on the hosting server.
-  }
-
-  try {
-    const fromManifest = await getPhotoFilesFromManifest();
-    if (fromManifest.length) {
-      return fromManifest;
-    }
-  } catch (_error) {
-    // Manifest is optional.
   }
 
   return [];
@@ -107,6 +129,7 @@ function initPhotobook() {
   const windowContainer = document.createElement("section");
   windowContainer.className = "photobook-window";
   windowContainer.setAttribute("role", "dialog");
+  windowContainer.setAttribute("aria-modal", "true");
   windowContainer.setAttribute("aria-label", "Photo memories");
 
   const titleBar = document.createElement("header");
@@ -114,7 +137,7 @@ function initPhotobook() {
 
   const title = document.createElement("p");
   title.className = "photobook-title";
-  title.textContent = "Scrapbook";
+  title.textContent = "Photobook";
   titleBar.appendChild(title);
 
   const viewport = document.createElement("div");
@@ -126,6 +149,8 @@ function initPhotobook() {
   const photoImage = document.createElement("img");
   photoImage.className = "photobook-photo";
   photoImage.alt = "Photobook memory";
+  photoImage.decoding = "async";
+  photoImage.loading = "eager";
   viewportInner.appendChild(photoImage);
 
   const emptyMessage = document.createElement("div");
@@ -192,6 +217,8 @@ function initPhotobook() {
   let files = [];
   let currentIndex = 0;
   let isLoaded = false;
+  let isLoading = false;
+  let loadPromise = null;
   let currentThumbWidthPercent = 100;
   let dragStartX = 0;
   let dragStartLeftPercent = 0;
@@ -202,9 +229,9 @@ function initPhotobook() {
     currentThumbWidthPercent = hasPhotos
       ? Math.max(100 / files.length, PHOTOBOOK_MIN_THUMB_PERCENT)
       : 100;
-    const progress = hasPhotos ? currentIndex / usableSteps : 0;
+    const progressFraction = hasPhotos ? currentIndex / usableSteps : 0;
     const maxTravelPercent = 100 - currentThumbWidthPercent;
-    const leftPercent = maxTravelPercent * progress;
+    const leftPercent = maxTravelPercent * progressFraction;
 
     thumb.style.width = `${currentThumbWidthPercent}%`;
     thumb.style.left = `${leftPercent}%`;
@@ -236,8 +263,24 @@ function initPhotobook() {
     photoImage.hidden = false;
     emptyMessage.hidden = true;
     photoImage.src = encodePhotoPath(files[currentIndex]);
+    photoImage.alt = `Photobook memory ${currentIndex + 1} of ${files.length}`;
     statusCount.textContent = `${currentIndex + 1} / ${files.length}`;
     updateScrollbarUI();
+    preloadNearbyImages();
+  }
+
+  function preloadNearbyImages() {
+    if (files.length <= 1) {
+      return;
+    }
+    const nearbyIndexes = [currentIndex - 1, currentIndex + 1].filter(
+      (index) => index >= 0 && index < files.length,
+    );
+    for (const nearbyIndex of nearbyIndexes) {
+      const image = new Image();
+      image.decoding = "async";
+      image.src = encodePhotoPath(files[nearbyIndex]);
+    }
   }
 
   function goToPhoto(newIndex) {
@@ -274,13 +317,26 @@ function initPhotobook() {
   }
 
   async function ensurePhotosLoaded() {
-    if (isLoaded) {
+    if (isLoaded || isLoading) {
+      if (loadPromise) {
+        await loadPromise;
+      }
       return;
     }
-    isLoaded = true;
-    files = await loadPhotobookFiles();
-    currentIndex = 0;
-    renderCurrentPhoto();
+
+    isLoading = true;
+    loadPromise = (async () => {
+      files = await loadPhotobookFiles();
+      currentIndex = 0;
+      isLoaded = true;
+      renderCurrentPhoto();
+    })();
+
+    try {
+      await loadPromise;
+    } finally {
+      isLoading = false;
+    }
   }
 
   async function openPhotobookWithPhotos() {
@@ -301,6 +357,12 @@ function initPhotobook() {
 
   leftButton.addEventListener("click", () => stepPhotos(-1));
   rightButton.addEventListener("click", () => stepPhotos(1));
+
+  photoImage.addEventListener("error", () => {
+    emptyMessage.hidden = false;
+    photoImage.hidden = true;
+    emptyMessage.textContent = "Could not load this photo. Try the next one.";
+  });
 
   track.addEventListener("pointerdown", (event) => {
     if (event.target === thumb || files.length <= 1) {
@@ -341,6 +403,11 @@ function initPhotobook() {
       thumb.releasePointerCapture(event.pointerId);
     }
   });
+  thumb.addEventListener("pointercancel", (event) => {
+    if (thumb.hasPointerCapture(event.pointerId)) {
+      thumb.releasePointerCapture(event.pointerId);
+    }
+  });
 
   overlay.addEventListener("click", (event) => {
     if (event.target === overlay) {
@@ -365,8 +432,19 @@ function initPhotobook() {
     if (event.key === "ArrowRight") {
       event.preventDefault();
       stepPhotos(1);
+      return;
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      goToPhoto(0);
+      return;
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      goToPhoto(files.length - 1);
     }
   });
+
 }
 
 initPhotobook();

@@ -1,10 +1,12 @@
 const asciiBg = document.getElementById("ascii-bg");
+const navbarTime = document.getElementById("mac-navbar-time");
 const FPS = 8;
 const FRAME_INTERVAL_MS = Math.round(1000 / FPS);
 const ASCII_LINE_HEIGHT = 0.92;
 const MEASURE_FONT_SIZE = 100;
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
-const frames = window.ASCII_VIDEO_FRAMES;
+const frames = Array.isArray(window.ASCII_VIDEO_FRAMES) ? window.ASCII_VIDEO_FRAMES : [];
 let currentFrameIndex = 0;
 let playbackTimer = null;
 let frameRowCount = 0;
@@ -67,8 +69,20 @@ function renderFrame(index) {
   asciiBg.textContent = frames[index];
 }
 
+function stopPlayback() {
+  if (playbackTimer === null) {
+    return;
+  }
+  window.clearInterval(playbackTimer);
+  playbackTimer = null;
+}
+
+function shouldAnimate() {
+  return !window.matchMedia(REDUCED_MOTION_QUERY).matches && !document.hidden;
+}
+
 function startPlayback() {
-  if (!frames.length) {
+  if (!frames.length || !asciiBg) {
     return;
   }
   computeFrameDimensions();
@@ -76,13 +90,12 @@ function startPlayback() {
   renderFrame(0);
   window.addEventListener("resize", scheduleFitAsciiToViewport);
 
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  if (!shouldAnimate()) {
+    stopPlayback();
     return;
   }
 
-  if (playbackTimer !== null) {
-    window.clearInterval(playbackTimer);
-  }
+  stopPlayback();
 
   playbackTimer = window.setInterval(() => {
     currentFrameIndex = (currentFrameIndex + 1) % frames.length;
@@ -90,13 +103,59 @@ function startPlayback() {
   }, FRAME_INTERVAL_MS);
 }
 
-function loadAndPlayAsciiVideoBackground() {
-  if (!Array.isArray(frames) || frames.length === 0) {
+function initAsciiBackground() {
+  if (!asciiBg) {
+    return;
+  }
+
+  if (frames.length === 0) {
     asciiBg.textContent =
       "ASCII video background could not be loaded.\nExpected ASCII_VIDEO_FRAMES in ascii_video_frames_data.js.";
     return;
   }
+
   startPlayback();
+
+  const reducedMotionMediaQuery = window.matchMedia(REDUCED_MOTION_QUERY);
+  const onMotionPreferenceChange = () => startPlayback();
+  if (typeof reducedMotionMediaQuery.addEventListener === "function") {
+    reducedMotionMediaQuery.addEventListener("change", onMotionPreferenceChange);
+  } else if (typeof reducedMotionMediaQuery.addListener === "function") {
+    // Safari < 14 fallback.
+    reducedMotionMediaQuery.addListener(onMotionPreferenceChange);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (shouldAnimate()) {
+      startPlayback();
+      return;
+    }
+    stopPlayback();
+  });
 }
 
-loadAndPlayAsciiVideoBackground();
+function formatTime12h(date) {
+  let hours = date.getHours() % 12;
+  if (hours === 0) {
+    hours = 12;
+  }
+  return `${String(hours).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function initNavbarClock() {
+  if (!navbarTime) {
+    return;
+  }
+
+  const tick = () => {
+    navbarTime.textContent = formatTime12h(new Date());
+    const now = new Date();
+    const delayMs = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
+    window.setTimeout(tick, Math.max(delayMs, 250));
+  };
+
+  tick();
+}
+
+initAsciiBackground();
+initNavbarClock();

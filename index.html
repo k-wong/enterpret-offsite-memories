@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Phuket Trip Scrapbook - ASCII Video</title>
+    <title>Enterpret Offsite 2026 Photobook</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body class="video-page">
@@ -29,24 +29,5 @@
     <script src="main.js"></script>
     <script src="photos-manifest.js"></script>
     <script src="photobook.js"></script>
-    <script>
-      (function updateMacNavbarTime() {
-        const timeElement = document.getElementById("mac-navbar-time");
-        if (!timeElement) return;
-
-        const setCurrentTime = () => {
-          const now = new Date();
-          let hours = now.getHours() % 12;
-          if (hours === 0) hours = 12;
-          const minutes = now.getMinutes();
-          const hh = String(hours).padStart(2, "0");
-          const mm = String(minutes).padStart(2, "0");
-          timeElement.textContent = `${hh}:${mm}`;
-        };
-
-        setCurrentTime();
-        setInterval(setCurrentTime, 1000);
-      })();
-    </script>
   </body>
 </html>

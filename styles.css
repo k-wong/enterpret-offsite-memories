@@ -12,6 +12,10 @@
 
 :root {
   --mac-navbar-height: 20px;
+  --retro-ui-font: "ChicagoFLF", "Geneva", "Verdana", "Tahoma", sans-serif;
+  --retro-ui-face: #efefef;
+  --retro-ui-shadow-light: #fff;
+  --retro-ui-shadow-dark: #999;
 }
 
 body {
@@ -41,7 +45,7 @@ body {
   background: repeating-linear-gradient(to bottom, #fafafa 0 1px, #ececec 1px 2px);
   box-shadow: inset 0 -1px 0 #7a7a7a;
   color: #000;
-  font-family: "ChicagoFLF", "Geneva", "Verdana", "Tahoma", sans-serif;
+  font-family: var(--retro-ui-font);
   font-size: 12px;
   font-weight: 400;
   line-height: 12px;
@@ -79,7 +83,7 @@ body {
   flex: 0 0 auto;
   min-width: 46px;
   text-align: right;
-  font-family: "ChicagoFLF", "Geneva", "Verdana", "Tahoma", sans-serif;
+  font-family: var(--retro-ui-font);
   font-size: 12px;
   font-weight: 400;
   letter-spacing: 0;
@@ -153,7 +157,7 @@ body.video-page #ascii-bg {
   margin: 0;
   padding: 0;
   color: #fff;
-  font-family: "ChicagoFLF","Geneva", "Verdana", "Tahoma", sans-serif;
+  font-family: var(--retro-ui-font);
   font-size: 12px;
   line-height: 1;
   letter-spacing: 0;
@@ -186,13 +190,13 @@ body.video-page #ascii-bg {
   max-height: min(94vh, 680px);
   aspect-ratio: 828 / 621;
   border: 1px solid #000;
-  background: #efefef;
+  background: var(--retro-ui-face);
   box-shadow:
     inset 1px 1px 0 #fff,
     inset -1px -1px 0 #9d9d9d,
     0 14px 44px rgba(0, 0, 0, 0.5);
   color: #000;
-  font-family: "ChicagoFLF", "Geneva", "Verdana", "Tahoma", sans-serif;
+  font-family: var(--retro-ui-font);
   user-select: none;
   overflow: hidden;
 }
@@ -219,7 +223,7 @@ body.video-page #ascii-bg {
   font-size: clamp(12px, 1.02vw, 14px);
   line-height: 1;
   letter-spacing: 0;
-  background: #efefef;
+  background: var(--retro-ui-face);
 }
 
 .photobook-photo-viewport {
@@ -261,7 +265,7 @@ body.video-page #ascii-bg {
   height: 100%;
   padding: 16px;
   color: #222;
-  font-family: "ChicagoFLF", "Geneva", "Verdana", "Tahoma", sans-serif;
+  font-family: var(--retro-ui-font);
   font-size: clamp(11px, 0.9vw, 13px);
   text-align: center;
 }
@@ -278,15 +282,15 @@ body.video-page #ascii-bg {
 .photobook-scroll-button {
   width: clamp(18px, 2.7vw, 22px);
   border: 1px solid #000;
-  background: #efefef;
+  background: var(--retro-ui-face);
   color: #000;
   font: inherit;
   font-size: clamp(10px, 0.9vw, 12px);
   line-height: 1;
   cursor: pointer;
   box-shadow:
-    inset 1px 1px 0 #fff,
-    inset -1px -1px 0 #999;
+    inset 1px 1px 0 var(--retro-ui-shadow-light),
+    inset -1px -1px 0 var(--retro-ui-shadow-dark);
 }
 
 .photobook-scroll-button:active:not(:disabled) {
@@ -330,8 +334,9 @@ body.video-page #ascii-bg {
   border: 1px solid #000;
   background: #fff;
   cursor: grab;
+  touch-action: none;
   box-shadow:
-    inset 1px 1px 0 #fff,
+    inset 1px 1px 0 var(--retro-ui-shadow-light),
     inset -1px -1px 0 #9a9a9a;
 }
 
@@ -369,10 +374,10 @@ body.video-page #ascii-bg {
   width: clamp(12px, 1.25vw, 14px);
   height: clamp(12px, 1.25vw, 14px);
   border: 1px solid #000;
-  background: #efefef;
+  background: var(--retro-ui-face);
   box-shadow:
-    inset 1px 1px 0 #fff,
-    inset -1px -1px 0 #999;
+    inset 1px 1px 0 var(--retro-ui-shadow-light),
+    inset -1px -1px 0 var(--retro-ui-shadow-dark);
   cursor: pointer;
 }
 
@@ -382,7 +387,14 @@ body.video-page #ascii-bg {
     inset 1px 1px 0 #999;
 }
 
-@media (max-width: 1400px) {
+.photobook-scroll-button:focus-visible,
+.photobook-scroll-thumb:focus-visible,
+.photobook-close:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: 1px;
+}
+
+@media (max-width: 900px), (pointer: coarse) and (max-width: 1100px) {
   body > * {
     display: none !important;
   }
