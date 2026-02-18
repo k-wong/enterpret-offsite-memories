@@ -1,0 +1,406 @@
+* {
+  box-sizing: border-box;
+}
+
+@font-face {
+  font-family: "ChicagoFLF";
+  src: url("ChicagoFLF.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --mac-navbar-height: 20px;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: #000;
+  color: #fff;
+  cursor:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 36 36'><text x='0' y='28' font-size='28'>🌴</text></svg>")
+      4 4,
+    auto;
+}
+
+.mac-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  height: var(--mac-navbar-height);
+  padding: 0 8px 0 7px;
+  border-top: 1px solid #fff;
+  border-bottom: 1px solid #000;
+  background: repeating-linear-gradient(to bottom, #fafafa 0 1px, #ececec 1px 2px);
+  box-shadow: inset 0 -1px 0 #7a7a7a;
+  color: #000;
+  font-family: "ChicagoFLF", "Geneva", "Verdana", "Tahoma", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 12px;
+  letter-spacing: 0;
+  -webkit-font-smoothing: none;
+  text-rendering: optimizeSpeed;
+}
+
+.mac-navbar-left {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.mac-navbar-logo {
+  display: block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  object-fit: contain;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+.mac-navbar-menu {
+  display: block;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mac-navbar-time {
+  flex: 0 0 auto;
+  min-width: 46px;
+  text-align: right;
+  font-family: "ChicagoFLF", "Geneva", "Verdana", "Tahoma", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+#ascii-bg {
+  position: absolute;
+  top: var(--mac-navbar-height);
+  left: 0;
+  width: 100vw;
+  height: calc(100vh - var(--mac-navbar-height));
+  margin: 0;
+  padding: 0.5rem;
+  overflow: hidden;
+  white-space: pre;
+  font-weight: 100;
+  font-family: ui-monospace, "Courier New", SFMono-Regular, Menlo, monospace;
+  font-size: clamp(0.45rem, 0.8vw, 0.72rem);
+  line-height: 0.92;
+  letter-spacing: 0;
+  color: #ccc;
+  background: #000;
+  user-select: none;
+  pointer-events: none;
+}
+
+body.video-page {
+  overflow: hidden;
+}
+
+body.video-page #ascii-bg {
+  padding: 0;
+  height: calc(100vh - var(--mac-navbar-height));
+}
+
+.desktop-folder-icon {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  transform: translateX(-50%);
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.desktop-folder-icon:focus-visible {
+  outline: 1px dotted #fff;
+  outline-offset: 4px;
+}
+
+.desktop-folder-glyph {
+  display: block;
+  width: 75px;
+  height: 57px;
+  background-image: url("folder-transparent.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  filter: invert(1) brightness(1.08);
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+.desktop-folder-label {
+  margin: 0;
+  padding: 0;
+  color: #fff;
+  font-family: "ChicagoFLF","Geneva", "Verdana", "Tahoma", sans-serif;
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0;
+  -webkit-font-smoothing: none;
+  text-rendering: optimizeSpeed;
+  text-shadow: 1px 1px 0 #222;
+}
+
+.photobook-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.photobook-overlay.is-open {
+  display: flex;
+}
+
+.photobook-window {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  row-gap: clamp(6px, 0.95vw, 9px);
+  width: min(860px, 94vw);
+  max-height: min(94vh, 680px);
+  aspect-ratio: 828 / 621;
+  border: 1px solid #000;
+  background: #efefef;
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 #9d9d9d,
+    0 14px 44px rgba(0, 0, 0, 0.5);
+  color: #000;
+  font-family: "ChicagoFLF", "Geneva", "Verdana", "Tahoma", sans-serif;
+  user-select: none;
+  overflow: hidden;
+}
+
+.photobook-titlebar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: clamp(20px, 3.2vw, 26px);
+  border-bottom: 1px solid #000;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      #f2f2f2 0 1px,
+      #d0d0d0 1px 2px
+    );
+}
+
+.photobook-title {
+  margin: 0;
+  padding: 0 7px;
+  color: #000;
+  font-size: clamp(12px, 1.02vw, 14px);
+  line-height: 1;
+  letter-spacing: 0;
+  background: #efefef;
+}
+
+.photobook-photo-viewport {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  margin: clamp(10px, 1.5vw, 14px) clamp(12px, 1.9vw, 16px) 0;
+  padding: clamp(5px, 0.8vw, 7px);
+  border: 1px solid #000;
+  background: #fff;
+  overflow: hidden;
+}
+
+.photobook-photo-inner {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 1px solid #000;
+  overflow: hidden;
+  background: #d7d7d7;
+}
+
+.photobook-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+.photobook-empty-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  color: #222;
+  font-family: "ChicagoFLF", "Geneva", "Verdana", "Tahoma", sans-serif;
+  font-size: clamp(11px, 0.9vw, 13px);
+  text-align: center;
+}
+
+.photobook-scrollbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: stretch;
+  gap: 0;
+  height: clamp(18px, 2.7vw, 22px);
+  margin: 0 clamp(18px, 3.2vw, 26px) 0;
+}
+
+.photobook-scroll-button {
+  width: clamp(18px, 2.7vw, 22px);
+  border: 1px solid #000;
+  background: #efefef;
+  color: #000;
+  font: inherit;
+  font-size: clamp(10px, 0.9vw, 12px);
+  line-height: 1;
+  cursor: pointer;
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 #999;
+}
+
+.photobook-scroll-button:active:not(:disabled) {
+  box-shadow:
+    inset -1px -1px 0 #fff,
+    inset 1px 1px 0 #999;
+}
+
+.photobook-scroll-button:disabled {
+  cursor: default;
+  color: #555;
+}
+
+.photobook-scroll-track {
+  position: relative;
+  border: 1px solid #000;
+  border-left: none;
+  border-right: none;
+  background:
+    radial-gradient(circle at 1px 1px, #808080 0.7px, transparent 0.8px) 0 0 / 4px 4px,
+    #ececec;
+  cursor: ew-resize;
+  overflow: hidden;
+}
+
+.photobook-scroll-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0;
+  background: rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+}
+
+.photobook-scroll-thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border: 1px solid #000;
+  background: #fff;
+  cursor: grab;
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 #9a9a9a;
+}
+
+.photobook-scroll-thumb:active {
+  cursor: grabbing;
+  box-shadow:
+    inset -1px -1px 0 #fff,
+    inset 1px 1px 0 #9a9a9a;
+}
+
+.photobook-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 0 clamp(22px, 3.4vw, 30px) clamp(10px, 1.5vw, 14px);
+  font-size: clamp(11px, 0.92vw, 12px);
+}
+
+.photobook-status-count {
+  margin: 0;
+}
+
+.photobook-status-type {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+.photobook-close {
+  position: absolute;
+  top: 50%;
+  left: 5px;
+  transform: translateY(-50%);
+  width: clamp(12px, 1.25vw, 14px);
+  height: clamp(12px, 1.25vw, 14px);
+  border: 1px solid #000;
+  background: #efefef;
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 #999;
+  cursor: pointer;
+}
+
+.photobook-close:active {
+  box-shadow:
+    inset -1px -1px 0 #fff,
+    inset 1px 1px 0 #999;
+}
+
+@media (max-width: 1400px) {
+  body > * {
+    display: none !important;
+  }
+
+  body::before {
+    content: "Switch to desktop for optimal viewing experience";
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    color: #fff;
+    font-family: "Geneva", "Verdana", "Tahoma", sans-serif;
+    font-size: clamp(18px, 2.4vw, 28px);
+    line-height: 1.3;
+    text-align: center;
+    background: #000;
+  }
+}
