@@ -222,6 +222,7 @@ function initPhotobook() {
   let currentThumbWidthPercent = 100;
   let dragStartX = 0;
   let dragStartLeftPercent = 0;
+  let hasHandledFirstFolderClick = false;
 
   function updateScrollbarUI() {
     const hasPhotos = files.length > 0;
@@ -344,7 +345,16 @@ function initPhotobook() {
     openPhotobook();
   }
 
-  folderIcon.addEventListener("click", openPhotobookWithPhotos);
+  folderIcon.addEventListener("click", () => {
+    if (!hasHandledFirstFolderClick) {
+      hasHandledFirstFolderClick = true;
+      if (typeof window.enableBackgroundSound === "function") {
+        window.enableBackgroundSound();
+      }
+      return;
+    }
+    openPhotobookWithPhotos();
+  });
   folderIcon.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") {
       return;

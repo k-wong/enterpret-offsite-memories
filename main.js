@@ -240,6 +240,9 @@ function initSoundButton() {
   loadSoundCloudWidgetApi();
 }
 
+// Expose a user-gesture-safe hook for first folder click audio enable.
+window.enableBackgroundSound = tryEnableSound;
+
 initAsciiBackground();
 initNavbarClock();
 initSoundButton();
