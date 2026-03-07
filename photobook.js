@@ -1,6 +1,25 @@
 const PHOTOBOOK_FOLDER_SELECTOR = ".desktop-folder-icon";
-const PHOTOBOOK_EXTENSIONS = /\.(avif|gif|jpe?g|png|webp)$/i;
+const PHOTOBOOK_IMAGE_EXTENSIONS = /\.(avif|gif|heic|heif|jpe?g|png|webp)$/i;
+const PHOTOBOOK_VIDEO_EXTENSIONS = /\.(m4v|mov|mp4|ogv|webm)$/i;
+const PHOTOBOOK_HEIC_EXTENSIONS = /\.(heic|heif)$/i;
+const PHOTOBOOK_IMAGE_FALLBACK_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif", "gif"];
+const PHOTOBOOK_VIDEO_PROBE_TIMEOUT_MS = 6000;
 const PHOTOBOOK_MIN_THUMB_PERCENT = 8;
+const PHOTOBOOK_WINDOW_PADDING_PX = 12;
+const PHOTOBOOK_WINDOW_MIN_WIDTH_PX = 560;
+const PHOTOBOOK_WINDOW_MIN_HEIGHT_PX = 420;
+const PHOTOBOOK_RESIZE_EDGES = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
+const photoVideoCompatibilityCache = new Map();
+const PHOTOBOOK_MESSAGES = {
+  noPhotos: "No photos found in the photos folder.",
+  noPhotosFileProtocol:
+    "No photos found. If opening via file://, update photos-manifest.js with your photo filenames.",
+  unsupportedHeic:
+    "No browser-compatible photos found. This browser cannot open .HEIC files without JPG/PNG copies.",
+  checkingVideo: "Checking video compatibility...",
+  unsupportedVideo: "Could not play this video in your browser. Try the next file.",
+  unsupportedFile: "Could not load this file. Try the next one.",
+};
 
 function normalizePhotoFileName(fileName) {
   if (typeof fileName !== "string") {
@@ -14,8 +33,24 @@ function normalizePhotoFileName(fileName) {
   return segments.join("/");
 }
 
-function isSupportedPhotoFile(fileName) {
-  return PHOTOBOOK_EXTENSIONS.test(fileName);
+function isSupportedPhotobookFile(fileName) {
+  return PHOTOBOOK_IMAGE_EXTENSIONS.test(fileName) || PHOTOBOOK_VIDEO_EXTENSIONS.test(fileName);
+}
+
+function isVideoFile(fileName) {
+  return PHOTOBOOK_VIDEO_EXTENSIONS.test(fileName);
+}
+
+function isHeicFile(fileName) {
+  return PHOTOBOOK_HEIC_EXTENSIONS.test(fileName);
+}
+
+function getMediaTypeLabel(fileName) {
+  return isVideoFile(fileName) ? "MOVI" : "PICT";
+}
+
+function getFileNameBase(fileName) {
+  return fileName.replace(/\.[^.]+$/, "");
 }
 
 function sortPhotoNamesAlphabetically(fileNames) {
@@ -49,7 +84,7 @@ function parseDirectoryListing(directoryHtml) {
       continue;
     }
     const fileName = normalizePhotoFileName(decodedHref.split("/").pop() || "");
-    if (!fileName || !isSupportedPhotoFile(fileName)) {
+    if (!fileName || !isSupportedPhotobookFile(fileName)) {
       continue;
     }
     files.push(fileName);
@@ -67,7 +102,7 @@ async function getPhotoFilesFromManifest() {
     return [];
   }
   return sortPhotoNamesAlphabetically(
-    manifestData.map((entry) => normalizePhotoFileName(entry)).filter(isSupportedPhotoFile),
+    manifestData.map((entry) => normalizePhotoFileName(entry)).filter(isSupportedPhotobookFile),
   );
 }
 
@@ -83,7 +118,7 @@ async function getPhotoFilesFromDirectoryListing() {
 async function loadPhotobookFiles() {
   if (Array.isArray(window.PHOTOBOOK_FILES) && window.PHOTOBOOK_FILES.length) {
     return sortPhotoNamesAlphabetically(
-      window.PHOTOBOOK_FILES.map((entry) => normalizePhotoFileName(entry)).filter(isSupportedPhotoFile),
+      window.PHOTOBOOK_FILES.map((entry) => normalizePhotoFileName(entry)).filter(isSupportedPhotobookFile),
     );
   }
 
@@ -112,16 +147,127 @@ function encodePhotoPath(fileName) {
   return `photos/${fileName.split("/").map((segment) => encodeURIComponent(segment)).join("/")}`;
 }
 
-function initPhotobook() {
-  const folderIcon = document.querySelector(PHOTOBOOK_FOLDER_SELECTOR);
-  if (!folderIcon) {
-    return;
+function canDecodeImageAtPath(path) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.onload = () => resolve(true);
+    image.onerror = () => resolve(false);
+    image.src = path;
+  });
+}
+
+function canDecodeVideoAtPath(path) {
+  const cachedResult = photoVideoCompatibilityCache.get(path);
+  if (typeof cachedResult === "boolean") {
+    return Promise.resolve(cachedResult);
   }
 
-  folderIcon.tabIndex = 0;
-  folderIcon.setAttribute("role", "button");
-  folderIcon.setAttribute("aria-label", "Open photobook");
+  return new Promise((resolve) => {
+    const videoProbe = document.createElement("video");
+    let settled = false;
+    const finalize = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      window.clearTimeout(timeoutId);
+      videoProbe.onloadedmetadata = null;
+      videoProbe.onerror = null;
+      videoProbe.removeAttribute("src");
+      videoProbe.load();
+      photoVideoCompatibilityCache.set(path, result);
+      resolve(result);
+    };
 
+    const timeoutId = window.setTimeout(() => finalize(false), PHOTOBOOK_VIDEO_PROBE_TIMEOUT_MS);
+    videoProbe.preload = "metadata";
+    videoProbe.muted = true;
+    videoProbe.playsInline = true;
+    videoProbe.onloadedmetadata = () => finalize(true);
+    videoProbe.onerror = () => finalize(false);
+    videoProbe.src = path;
+    videoProbe.load();
+  });
+}
+
+function createInListFallbackIndex(fileNames) {
+  const fallbackByBase = new Map();
+  for (const fileName of fileNames) {
+    if (!PHOTOBOOK_IMAGE_EXTENSIONS.test(fileName) || isHeicFile(fileName)) {
+      continue;
+    }
+    const key = getFileNameBase(fileName).toLowerCase();
+    if (!fallbackByBase.has(key)) {
+      fallbackByBase.set(key, fileName);
+    }
+  }
+  return fallbackByBase;
+}
+
+async function resolveHeicFallback(fileName, inListFallbacks) {
+  const baseName = getFileNameBase(fileName);
+  const baseNameKey = baseName.toLowerCase();
+  const inListFallback = inListFallbacks.get(baseNameKey);
+  if (inListFallback) {
+    return inListFallback;
+  }
+
+  for (const extension of PHOTOBOOK_IMAGE_FALLBACK_EXTENSIONS) {
+    const fallbackCandidates = [`${baseName}.${extension}`, `${baseName}.${extension.toUpperCase()}`];
+    for (const fallbackName of fallbackCandidates) {
+      const fallbackPath = encodePhotoPath(fallbackName);
+      // Some setups keep converted files out of manifest; probe for same-name fallbacks.
+      // eslint-disable-next-line no-await-in-loop
+      if (await canDecodeImageAtPath(fallbackPath)) {
+        return fallbackName;
+      }
+    }
+  }
+
+  return "";
+}
+
+async function resolveDisplayFilesForBrowser(fileNames) {
+  const heicEntries = fileNames.filter((fileName) => isHeicFile(fileName));
+  if (!heicEntries.length) {
+    return { files: fileNames, skippedHeicCount: 0 };
+  }
+
+  const heicLoads = await canDecodeImageAtPath(encodePhotoPath(heicEntries[0]));
+  if (heicLoads) {
+    return { files: fileNames, skippedHeicCount: 0 };
+  }
+
+  const inListFallbacks = createInListFallbackIndex(fileNames);
+  const displayFiles = [];
+  const seenFiles = new Set();
+  let skippedHeicCount = 0;
+
+  for (const fileName of fileNames) {
+    if (!isHeicFile(fileName)) {
+      if (!seenFiles.has(fileName)) {
+        displayFiles.push(fileName);
+        seenFiles.add(fileName);
+      }
+      continue;
+    }
+
+    // eslint-disable-next-line no-await-in-loop
+    const heicFallback = await resolveHeicFallback(fileName, inListFallbacks);
+    if (heicFallback && !seenFiles.has(heicFallback)) {
+      displayFiles.push(heicFallback);
+      seenFiles.add(heicFallback);
+      continue;
+    }
+
+    skippedHeicCount += 1;
+  }
+
+  return { files: displayFiles, skippedHeicCount };
+}
+
+function createPhotobookElements() {
   const overlay = document.createElement("div");
   overlay.className = "photobook-overlay";
   overlay.setAttribute("aria-hidden", "true");
@@ -153,9 +299,17 @@ function initPhotobook() {
   photoImage.loading = "eager";
   viewportInner.appendChild(photoImage);
 
+  const photoVideo = document.createElement("video");
+  photoVideo.className = "photobook-photo photobook-video";
+  photoVideo.controls = true;
+  photoVideo.preload = "metadata";
+  photoVideo.playsInline = true;
+  photoVideo.hidden = true;
+  viewportInner.appendChild(photoVideo);
+
   const emptyMessage = document.createElement("div");
   emptyMessage.className = "photobook-empty-message";
-  emptyMessage.textContent = "No photos found in the photos folder.";
+  emptyMessage.textContent = PHOTOBOOK_MESSAGES.noPhotos;
   emptyMessage.hidden = true;
   viewportInner.appendChild(emptyMessage);
   viewport.appendChild(viewportInner);
@@ -209,10 +363,62 @@ function initPhotobook() {
   statusType.textContent = "PICT";
 
   status.append(statusCount, statusType);
-
   windowContainer.append(titleBar, viewport, scrollbar, status);
+
+  for (const edge of PHOTOBOOK_RESIZE_EDGES) {
+    const resizeHandle = document.createElement("div");
+    resizeHandle.className = `photobook-resize-handle photobook-resize-handle-${edge}`;
+    resizeHandle.dataset.edge = edge;
+    resizeHandle.setAttribute("aria-hidden", "true");
+    windowContainer.appendChild(resizeHandle);
+  }
+
   overlay.appendChild(windowContainer);
   document.body.appendChild(overlay);
+
+  return {
+    overlay,
+    windowContainer,
+    titleBar,
+    photoImage,
+    photoVideo,
+    emptyMessage,
+    closeButton,
+    leftButton,
+    rightButton,
+    track,
+    progress,
+    thumb,
+    statusCount,
+    statusType,
+  };
+}
+
+function initPhotobook() {
+  const folderIcon = document.querySelector(PHOTOBOOK_FOLDER_SELECTOR);
+  if (!folderIcon) {
+    return;
+  }
+
+  folderIcon.tabIndex = 0;
+  folderIcon.setAttribute("role", "button");
+  folderIcon.setAttribute("aria-label", "Open photobook");
+  const {
+    overlay,
+    windowContainer,
+    titleBar,
+    photoImage,
+    photoVideo,
+    emptyMessage,
+    closeButton,
+    leftButton,
+    rightButton,
+    track,
+    progress,
+    thumb,
+    statusCount,
+    statusType,
+  } = createPhotobookElements();
 
   let files = [];
   let currentIndex = 0;
@@ -223,6 +429,153 @@ function initPhotobook() {
   let dragStartX = 0;
   let dragStartLeftPercent = 0;
   let hasHandledFirstFolderClick = false;
+  let windowFrame = null;
+  let windowInteraction = null;
+  let skippedUnsupportedHeicCount = 0;
+  let pendingVideoRenderToken = 0;
+
+  function isPrimaryPointer(event) {
+    return event.pointerType !== "mouse" || event.button === 0;
+  }
+
+  function clampWindowFrame(frame) {
+    const overlayRect = overlay.getBoundingClientRect();
+    if (!overlayRect.width || !overlayRect.height) {
+      return frame;
+    }
+
+    const maxWidth = Math.max(220, overlayRect.width - PHOTOBOOK_WINDOW_PADDING_PX * 2);
+    const maxHeight = Math.max(180, overlayRect.height - PHOTOBOOK_WINDOW_PADDING_PX * 2);
+    const minWidth = Math.min(PHOTOBOOK_WINDOW_MIN_WIDTH_PX, maxWidth);
+    const minHeight = Math.min(PHOTOBOOK_WINDOW_MIN_HEIGHT_PX, maxHeight);
+
+    const width = Math.min(Math.max(frame.width, minWidth), maxWidth);
+    const height = Math.min(Math.max(frame.height, minHeight), maxHeight);
+
+    const minLeft = PHOTOBOOK_WINDOW_PADDING_PX;
+    const minTop = PHOTOBOOK_WINDOW_PADDING_PX;
+    const maxLeft = Math.max(minLeft, overlayRect.width - PHOTOBOOK_WINDOW_PADDING_PX - width);
+    const maxTop = Math.max(minTop, overlayRect.height - PHOTOBOOK_WINDOW_PADDING_PX - height);
+
+    return {
+      left: Math.min(Math.max(frame.left, minLeft), maxLeft),
+      top: Math.min(Math.max(frame.top, minTop), maxTop),
+      width,
+      height,
+    };
+  }
+
+  function applyWindowFrame() {
+    if (!windowFrame) {
+      return;
+    }
+    windowFrame = clampWindowFrame(windowFrame);
+    windowContainer.style.left = `${windowFrame.left}px`;
+    windowContainer.style.top = `${windowFrame.top}px`;
+    windowContainer.style.width = `${windowFrame.width}px`;
+    windowContainer.style.height = `${windowFrame.height}px`;
+  }
+
+  function initializeWindowFrame() {
+    const overlayRect = overlay.getBoundingClientRect();
+    if (!overlayRect.width || !overlayRect.height) {
+      return;
+    }
+
+    if (!windowFrame) {
+      windowContainer.style.left = "";
+      windowContainer.style.top = "";
+      windowContainer.style.width = "";
+      windowContainer.style.height = "";
+
+      const windowRect = windowContainer.getBoundingClientRect();
+      windowFrame = {
+        left: (overlayRect.width - windowRect.width) / 2,
+        top: (overlayRect.height - windowRect.height) / 2,
+        width: windowRect.width,
+        height: windowRect.height,
+      };
+    }
+
+    applyWindowFrame();
+  }
+
+  function startWindowInteraction(event, mode, edge = "") {
+    if (!isPrimaryPointer(event) || !overlay.classList.contains("is-open")) {
+      return;
+    }
+
+    event.preventDefault();
+    initializeWindowFrame();
+    if (!windowFrame) {
+      return;
+    }
+
+    windowInteraction = {
+      pointerId: event.pointerId,
+      mode,
+      edge,
+      startX: event.clientX,
+      startY: event.clientY,
+      startLeft: windowFrame.left,
+      startTop: windowFrame.top,
+      startWidth: windowFrame.width,
+      startHeight: windowFrame.height,
+    };
+  }
+
+  function handleWindowPointerMove(event) {
+    if (!windowInteraction || event.pointerId !== windowInteraction.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    const deltaX = event.clientX - windowInteraction.startX;
+    const deltaY = event.clientY - windowInteraction.startY;
+
+    if (windowInteraction.mode === "move") {
+      windowFrame = clampWindowFrame({
+        left: windowInteraction.startLeft + deltaX,
+        top: windowInteraction.startTop + deltaY,
+        width: windowInteraction.startWidth,
+        height: windowInteraction.startHeight,
+      });
+      applyWindowFrame();
+      return;
+    }
+
+    const nextFrame = {
+      left: windowInteraction.startLeft,
+      top: windowInteraction.startTop,
+      width: windowInteraction.startWidth,
+      height: windowInteraction.startHeight,
+    };
+
+    if (windowInteraction.edge.includes("e")) {
+      nextFrame.width = windowInteraction.startWidth + deltaX;
+    }
+    if (windowInteraction.edge.includes("w")) {
+      nextFrame.width = windowInteraction.startWidth - deltaX;
+      nextFrame.left = windowInteraction.startLeft + deltaX;
+    }
+    if (windowInteraction.edge.includes("s")) {
+      nextFrame.height = windowInteraction.startHeight + deltaY;
+    }
+    if (windowInteraction.edge.includes("n")) {
+      nextFrame.height = windowInteraction.startHeight - deltaY;
+      nextFrame.top = windowInteraction.startTop + deltaY;
+    }
+
+    windowFrame = clampWindowFrame(nextFrame);
+    applyWindowFrame();
+  }
+
+  function stopWindowInteraction(event) {
+    if (!windowInteraction || event.pointerId !== windowInteraction.pointerId) {
+      return;
+    }
+    windowInteraction = null;
+  }
 
   function updateScrollbarUI() {
     const hasPhotos = files.length > 0;
@@ -245,27 +598,99 @@ function initPhotobook() {
     track.style.pointerEvents = hasPhotos && files.length > 1 ? "auto" : "none";
   }
 
+  function resetVideoPlayback() {
+    photoVideo.pause();
+    photoVideo.removeAttribute("src");
+    photoVideo.load();
+  }
+
+  function showEmptyMessage(message) {
+    emptyMessage.hidden = false;
+    emptyMessage.textContent = message;
+  }
+
+  function hideEmptyMessage() {
+    emptyMessage.hidden = true;
+  }
+
+  function setPhotobookOpen(isOpen) {
+    overlay.classList.toggle("is-open", isOpen);
+    overlay.setAttribute("aria-hidden", isOpen ? "false" : "true");
+  }
+
+  function releaseThumbPointerCapture(pointerId) {
+    if (thumb.hasPointerCapture(pointerId)) {
+      thumb.releasePointerCapture(pointerId);
+    }
+  }
+
   function renderCurrentPhoto() {
     const hasPhotos = files.length > 0;
     if (!hasPhotos) {
       photoImage.hidden = true;
-      emptyMessage.hidden = false;
-      if (window.location.protocol === "file:") {
-        emptyMessage.textContent =
-          "No photos found. If opening via file://, update photos-manifest.js with your photo filenames.";
-      } else {
-        emptyMessage.textContent = "No photos found in the photos folder.";
+      photoVideo.hidden = true;
+      resetVideoPlayback();
+      showEmptyMessage(
+        window.location.protocol === "file:"
+          ? PHOTOBOOK_MESSAGES.noPhotosFileProtocol
+          : PHOTOBOOK_MESSAGES.noPhotos,
+      );
+      if (skippedUnsupportedHeicCount > 0) {
+        showEmptyMessage(PHOTOBOOK_MESSAGES.unsupportedHeic);
       }
       statusCount.textContent = "0 / 0";
+      statusType.textContent = "PICT";
       updateScrollbarUI();
       return;
     }
 
-    photoImage.hidden = false;
-    emptyMessage.hidden = true;
-    photoImage.src = encodePhotoPath(files[currentIndex]);
-    photoImage.alt = `Photobook memory ${currentIndex + 1} of ${files.length}`;
+    const currentFile = files[currentIndex];
+    const currentPath = encodePhotoPath(currentFile);
+    const isCurrentVideo = isVideoFile(currentFile);
+
+    hideEmptyMessage();
     statusCount.textContent = `${currentIndex + 1} / ${files.length}`;
+    statusType.textContent = getMediaTypeLabel(currentFile);
+
+    if (isCurrentVideo) {
+      const renderToken = ++pendingVideoRenderToken;
+      photoImage.hidden = true;
+      photoImage.removeAttribute("src");
+      photoVideo.hidden = true;
+      resetVideoPlayback();
+      showEmptyMessage(PHOTOBOOK_MESSAGES.checkingVideo);
+      void canDecodeVideoAtPath(currentPath).then((canDecodeVideo) => {
+        if (renderToken !== pendingVideoRenderToken) {
+          return;
+        }
+        const activeFile = files[currentIndex];
+        if (activeFile !== currentFile || !isVideoFile(activeFile)) {
+          return;
+        }
+        if (!canDecodeVideo) {
+          photoVideo.hidden = true;
+          showEmptyMessage(PHOTOBOOK_MESSAGES.unsupportedVideo);
+          return;
+        }
+        hideEmptyMessage();
+        photoVideo.hidden = false;
+        photoVideo.src = currentPath;
+        photoVideo.currentTime = 0;
+        void photoVideo.play().catch(() => {
+          // Some browsers block autoplay; controls remain available for manual play.
+        });
+      });
+      updateScrollbarUI();
+      return;
+    }
+
+    pendingVideoRenderToken += 1;
+    hideEmptyMessage();
+    resetVideoPlayback();
+    photoVideo.hidden = true;
+    photoImage.hidden = false;
+    photoImage.src = currentPath;
+    photoImage.alt = `Photobook memory ${currentIndex + 1} of ${files.length}`;
     updateScrollbarUI();
     preloadNearbyImages();
   }
@@ -278,6 +703,9 @@ function initPhotobook() {
       (index) => index >= 0 && index < files.length,
     );
     for (const nearbyIndex of nearbyIndexes) {
+      if (isVideoFile(files[nearbyIndex])) {
+        continue;
+      }
       const image = new Image();
       image.decoding = "async";
       image.src = encodePhotoPath(files[nearbyIndex]);
@@ -306,14 +734,15 @@ function initPhotobook() {
   }
 
   function openPhotobook() {
-    overlay.classList.add("is-open");
-    overlay.setAttribute("aria-hidden", "false");
+    setPhotobookOpen(true);
+    initializeWindowFrame();
     closeButton.focus();
   }
 
   function closePhotobook() {
-    overlay.classList.remove("is-open");
-    overlay.setAttribute("aria-hidden", "true");
+    windowInteraction = null;
+    resetVideoPlayback();
+    setPhotobookOpen(false);
     folderIcon.focus();
   }
 
@@ -327,7 +756,10 @@ function initPhotobook() {
 
     isLoading = true;
     loadPromise = (async () => {
-      files = await loadPhotobookFiles();
+      const loadedFiles = await loadPhotobookFiles();
+      const resolved = await resolveDisplayFilesForBrowser(loadedFiles);
+      files = resolved.files;
+      skippedUnsupportedHeicCount = resolved.skippedHeicCount;
       currentIndex = 0;
       isLoaded = true;
       renderCurrentPhoto();
@@ -364,14 +796,42 @@ function initPhotobook() {
   });
 
   closeButton.addEventListener("click", closePhotobook);
+  titleBar.addEventListener("pointerdown", (event) => {
+    if (event.target === closeButton || closeButton.contains(event.target)) {
+      return;
+    }
+    startWindowInteraction(event, "move");
+  });
+  windowContainer.addEventListener("pointerdown", (event) => {
+    const targetElement = event.target instanceof Element ? event.target : null;
+    const resizeHandle = targetElement?.closest(".photobook-resize-handle");
+    if (!resizeHandle || !windowContainer.contains(resizeHandle)) {
+      return;
+    }
+    startWindowInteraction(event, "resize", resizeHandle.dataset.edge || "");
+  });
+  document.addEventListener("pointermove", handleWindowPointerMove);
+  document.addEventListener("pointerup", stopWindowInteraction);
+  document.addEventListener("pointercancel", stopWindowInteraction);
+  window.addEventListener("resize", () => {
+    if (!windowFrame || !overlay.classList.contains("is-open")) {
+      return;
+    }
+    applyWindowFrame();
+  });
 
   leftButton.addEventListener("click", () => stepPhotos(-1));
   rightButton.addEventListener("click", () => stepPhotos(1));
 
   photoImage.addEventListener("error", () => {
-    emptyMessage.hidden = false;
+    showEmptyMessage(PHOTOBOOK_MESSAGES.unsupportedFile);
     photoImage.hidden = true;
-    emptyMessage.textContent = "Could not load this photo. Try the next one.";
+  });
+
+  photoVideo.addEventListener("error", () => {
+    resetVideoPlayback();
+    photoVideo.hidden = true;
+    showEmptyMessage(PHOTOBOOK_MESSAGES.unsupportedVideo);
   });
 
   track.addEventListener("pointerdown", (event) => {
@@ -409,14 +869,10 @@ function initPhotobook() {
   });
 
   thumb.addEventListener("pointerup", (event) => {
-    if (thumb.hasPointerCapture(event.pointerId)) {
-      thumb.releasePointerCapture(event.pointerId);
-    }
+    releaseThumbPointerCapture(event.pointerId);
   });
   thumb.addEventListener("pointercancel", (event) => {
-    if (thumb.hasPointerCapture(event.pointerId)) {
-      thumb.releasePointerCapture(event.pointerId);
-    }
+    releaseThumbPointerCapture(event.pointerId);
   });
 
   overlay.addEventListener("click", (event) => {

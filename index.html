@@ -7,6 +7,13 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body class="video-page">
+    <div id="page-loader" class="page-loader" role="status" aria-live="polite">
+      <div class="page-loader-inner">
+        <img class="page-loader-image" src="loader.png" alt="" aria-hidden="true" />
+        <p class="page-loader-text">Loading<span class="page-loader-dots" aria-hidden="true"></span></p>
+      </div>
+    </div>
+
     <div class="soundcloud-audio-container" aria-hidden="true">
       <iframe
         id="soundcloud-player"
