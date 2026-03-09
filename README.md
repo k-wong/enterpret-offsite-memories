@@ -15,14 +15,14 @@ Retro desktop-style photobook with an ASCII animated background, hidden SoundClo
 - `styles.css`: Retro UI and photobook window styles.
 - `main.js`: App bootstrap (loader, ASCII controller, navbar clock/link, SoundCloud controller).
 - `photobook.js`: Media discovery, compatibility checks, and photobook interaction logic.
-- `photos-manifest.js`: Optional explicit media list for reliable `file://` usage.
+- `photos-manifest.js`: Explicit media key list (used for local files and R2 object keys).
 - `ascii_video_frames_data.js`: Generated ASCII animation frame payload.
-- `photos/`: Your media assets.
+- `photos/`: Optional local media assets for local-only runs.
 
 ## Run locally
 
-1. Put image/video files in `photos/`.
-2. Update `photos-manifest.js` (recommended if opening `index.html` directly via `file://`).
+1. Put image/video files in `photos/` (optional if using R2 only).
+2. Update `photos-manifest.js` with exact file names/object keys.
 3. Open `index.html` in a browser.
 
 Optional local server:
@@ -33,6 +33,23 @@ python3 -m http.server 8000
 
 Then visit `http://localhost:8000`.
 
+## Cloudflare R2 + Pages setup
+
+Use these settings for this project:
+
+1. In Cloudflare Dashboard, open `R2 Object Storage` -> bucket `phuket-photos` -> `Settings`.
+2. Ensure `Public Development URL` is enabled.
+3. In `index.html`, set `window.PHOTOBOOK_MEDIA_BASE_URL` to your bucket base URL.
+   - Current value: `https://pub-9c487fda6d0a4dc8acd61702b4b52470.r2.dev`
+4. Keep `photos-manifest.js` as the source of object keys and ensure each entry exactly matches R2 key casing.
+   - Example: `IMG_01440.jpg` is different from `IMG_01440.JPG`.
+5. Deploy this repo to Cloudflare Pages as a static site (no build command required).
+
+Optional hardening for production:
+
+1. Add an R2 custom domain in the bucket `Settings` and swap `window.PHOTOBOOK_MEDIA_BASE_URL` to that domain.
+2. Configure R2 CORS for your Pages host if you later need stricter cross-origin behavior (for example, canvas processing).
+
 ## Media loading order
 
 Photobook files are resolved in this order:
@@ -40,6 +57,8 @@ Photobook files are resolved in this order:
 1. `window.PHOTOBOOK_FILES` from `photos-manifest.js` (if present and non-empty)
 2. `photos/manifest.json` (if served)
 3. Server directory listing for `photos/` (if enabled by host)
+
+When `window.PHOTOBOOK_MEDIA_BASE_URL` is set, rendered media URLs are loaded from that base (for example, R2).
 
 ## Supported formats
 

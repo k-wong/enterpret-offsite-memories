@@ -1,5 +1,5 @@
 window.PHOTOBOOK_FILES = [
-  "IMG_01440.JPG",
+  "IMG_01440.jpg",
   "IMG_01627.PNG",
   "IMG_1420.JPG",
   "IMG_1421.JPG",

@@ -4,6 +4,10 @@ const PHOTOBOOK_VIDEO_EXTENSIONS = /\.(m4v|mov|mp4|ogv|webm)$/i;
 const PHOTOBOOK_HEIC_EXTENSIONS = /\.(heic|heif)$/i;
 const PHOTOBOOK_IMAGE_FALLBACK_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif", "gif"];
 const PHOTOBOOK_VIDEO_PROBE_TIMEOUT_MS = 6000;
+const PHOTOBOOK_LOCAL_MEDIA_DIRECTORY = "photos";
+const PHOTOBOOK_REMOTE_MEDIA_BASE_URL = normalizeMediaBaseUrl(
+  typeof window.PHOTOBOOK_MEDIA_BASE_URL === "string" ? window.PHOTOBOOK_MEDIA_BASE_URL : "",
+);
 const PHOTOBOOK_MIN_THUMB_PERCENT = 8;
 const PHOTOBOOK_WINDOW_PADDING_PX = 12;
 const PHOTOBOOK_WINDOW_MIN_WIDTH_PX = 560;
@@ -31,6 +35,13 @@ function normalizePhotoFileName(fileName) {
     .map((segment) => segment.trim())
     .filter((segment) => segment && segment !== "." && segment !== "..");
   return segments.join("/");
+}
+
+function normalizeMediaBaseUrl(mediaBaseUrl) {
+  if (typeof mediaBaseUrl !== "string") {
+    return "";
+  }
+  return mediaBaseUrl.trim().replace(/\/+$/, "");
 }
 
 function isSupportedPhotobookFile(fileName) {
@@ -93,7 +104,7 @@ function parseDirectoryListing(directoryHtml) {
 }
 
 async function getPhotoFilesFromManifest() {
-  const manifestResponse = await fetch("photos/manifest.json", { cache: "no-store" });
+  const manifestResponse = await fetch(`${PHOTOBOOK_LOCAL_MEDIA_DIRECTORY}/manifest.json`, { cache: "no-store" });
   if (!manifestResponse.ok) {
     return [];
   }
@@ -107,7 +118,7 @@ async function getPhotoFilesFromManifest() {
 }
 
 async function getPhotoFilesFromDirectoryListing() {
-  const directoryResponse = await fetch("photos/", { cache: "no-store" });
+  const directoryResponse = await fetch(`${PHOTOBOOK_LOCAL_MEDIA_DIRECTORY}/`, { cache: "no-store" });
   if (!directoryResponse.ok) {
     return [];
   }
@@ -144,7 +155,11 @@ async function loadPhotobookFiles() {
 }
 
 function encodePhotoPath(fileName) {
-  return `photos/${fileName.split("/").map((segment) => encodeURIComponent(segment)).join("/")}`;
+  const encodedFileName = fileName.split("/").map((segment) => encodeURIComponent(segment)).join("/");
+  if (PHOTOBOOK_REMOTE_MEDIA_BASE_URL) {
+    return `${PHOTOBOOK_REMOTE_MEDIA_BASE_URL}/${encodedFileName}`;
+  }
+  return `${PHOTOBOOK_LOCAL_MEDIA_DIRECTORY}/${encodedFileName}`;
 }
 
 function canDecodeImageAtPath(path) {
