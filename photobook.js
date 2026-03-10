@@ -2,7 +2,6 @@ const PHOTOBOOK_FOLDER_SELECTOR = ".desktop-folder-icon";
 const PHOTOBOOK_IMAGE_EXTENSIONS = /\.(avif|gif|heic|heif|jpe?g|png|webp)$/i;
 const PHOTOBOOK_VIDEO_EXTENSIONS = /\.(m4v|mov|mp4|ogv|webm)$/i;
 const PHOTOBOOK_HEIC_EXTENSIONS = /\.(heic|heif)$/i;
-const PHOTOBOOK_IMAGE_FALLBACK_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "avif", "gif"];
 const PHOTOBOOK_VIDEO_PROBE_TIMEOUT_MS = 6000;
 const PHOTOBOOK_LOCAL_MEDIA_DIRECTORY = "photos";
 const PHOTOBOOK_REMOTE_MEDIA_BASE_URL = normalizeMediaBaseUrl(
@@ -18,6 +17,7 @@ const PHOTOBOOK_MESSAGES = {
   noPhotos: "No photos found in the photos folder.",
   noPhotosFileProtocol:
     "No photos found. If opening via file://, update photos-manifest.js with your photo filenames.",
+  loadingPhotos: "Loading memories...",
   unsupportedHeic:
     "No browser-compatible photos found. This browser cannot open .HEIC files without JPG/PNG copies.",
   checkingVideo: "Checking video compatibility...",
@@ -58,10 +58,6 @@ function isHeicFile(fileName) {
 
 function getMediaTypeLabel(fileName) {
   return isVideoFile(fileName) ? "MOVI" : "PICT";
-}
-
-function getFileNameBase(fileName) {
-  return fileName.replace(/\.[^.]+$/, "");
 }
 
 function sortPhotoNamesAlphabetically(fileNames) {
@@ -206,43 +202,6 @@ function canDecodeVideoAtPath(path) {
   });
 }
 
-function createInListFallbackIndex(fileNames) {
-  const fallbackByBase = new Map();
-  for (const fileName of fileNames) {
-    if (!PHOTOBOOK_IMAGE_EXTENSIONS.test(fileName) || isHeicFile(fileName)) {
-      continue;
-    }
-    const key = getFileNameBase(fileName).toLowerCase();
-    if (!fallbackByBase.has(key)) {
-      fallbackByBase.set(key, fileName);
-    }
-  }
-  return fallbackByBase;
-}
-
-async function resolveHeicFallback(fileName, inListFallbacks) {
-  const baseName = getFileNameBase(fileName);
-  const baseNameKey = baseName.toLowerCase();
-  const inListFallback = inListFallbacks.get(baseNameKey);
-  if (inListFallback) {
-    return inListFallback;
-  }
-
-  for (const extension of PHOTOBOOK_IMAGE_FALLBACK_EXTENSIONS) {
-    const fallbackCandidates = [`${baseName}.${extension}`, `${baseName}.${extension.toUpperCase()}`];
-    for (const fallbackName of fallbackCandidates) {
-      const fallbackPath = encodePhotoPath(fallbackName);
-      // Some setups keep converted files out of manifest; probe for same-name fallbacks.
-      // eslint-disable-next-line no-await-in-loop
-      if (await canDecodeImageAtPath(fallbackPath)) {
-        return fallbackName;
-      }
-    }
-  }
-
-  return "";
-}
-
 async function resolveDisplayFilesForBrowser(fileNames) {
   const heicEntries = fileNames.filter((fileName) => isHeicFile(fileName));
   if (!heicEntries.length) {
@@ -254,32 +213,8 @@ async function resolveDisplayFilesForBrowser(fileNames) {
     return { files: fileNames, skippedHeicCount: 0 };
   }
 
-  const inListFallbacks = createInListFallbackIndex(fileNames);
-  const displayFiles = [];
-  const seenFiles = new Set();
-  let skippedHeicCount = 0;
-
-  for (const fileName of fileNames) {
-    if (!isHeicFile(fileName)) {
-      if (!seenFiles.has(fileName)) {
-        displayFiles.push(fileName);
-        seenFiles.add(fileName);
-      }
-      continue;
-    }
-
-    // eslint-disable-next-line no-await-in-loop
-    const heicFallback = await resolveHeicFallback(fileName, inListFallbacks);
-    if (heicFallback && !seenFiles.has(heicFallback)) {
-      displayFiles.push(heicFallback);
-      seenFiles.add(heicFallback);
-      continue;
-    }
-
-    skippedHeicCount += 1;
-  }
-
-  return { files: displayFiles, skippedHeicCount };
+  const displayFiles = fileNames.filter((fileName) => !isHeicFile(fileName));
+  return { files: displayFiles, skippedHeicCount: fileNames.length - displayFiles.length };
 }
 
 function createPhotobookElements() {
@@ -628,6 +563,16 @@ function initPhotobook() {
     emptyMessage.hidden = true;
   }
 
+  function showLoadingState() {
+    photoImage.hidden = true;
+    photoVideo.hidden = true;
+    resetVideoPlayback();
+    showEmptyMessage(PHOTOBOOK_MESSAGES.loadingPhotos);
+    statusCount.textContent = "0 / 0";
+    statusType.textContent = "PICT";
+    updateScrollbarUI();
+  }
+
   function setPhotobookOpen(isOpen) {
     overlay.classList.toggle("is-open", isOpen);
     overlay.setAttribute("aria-hidden", isOpen ? "false" : "true");
@@ -787,9 +732,19 @@ function initPhotobook() {
     }
   }
 
-  async function openPhotobookWithPhotos() {
-    await ensurePhotosLoaded();
+  function openPhotobookWithPhotos() {
     openPhotobook();
+    if (isLoaded) {
+      renderCurrentPhoto();
+      return;
+    }
+
+    showLoadingState();
+    void ensurePhotosLoaded().catch(() => {
+      isLoaded = true;
+      files = [];
+      renderCurrentPhoto();
+    });
   }
 
   folderIcon.addEventListener("click", () => {
@@ -798,16 +753,15 @@ function initPhotobook() {
       if (typeof window.enableBackgroundSound === "function") {
         window.enableBackgroundSound();
       }
-      return;
     }
-    openPhotobookWithPhotos();
+    void openPhotobookWithPhotos();
   });
   folderIcon.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") {
       return;
     }
     event.preventDefault();
-    openPhotobookWithPhotos();
+    void openPhotobookWithPhotos();
   });
 
   closeButton.addEventListener("click", closePhotobook);
