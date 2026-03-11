@@ -37,18 +37,12 @@ Then visit `http://localhost:8000`.
 
 Use these settings for this project:
 
-1. In Cloudflare Dashboard, open `R2 Object Storage` -> bucket `phuket-photos` -> `Settings`.
+1. In Cloudflare Dashboard, open `R2 Object Storage` -> create a bucket `phuket-photos` -> upload `photos/` -> `Settings`.
 2. Ensure `Public Development URL` is enabled.
 3. In `index.html`, set `window.PHOTOBOOK_MEDIA_BASE_URL` to your bucket base URL.
    - Current value: `https://pub-9c487fda6d0a4dc8acd61702b4b52470.r2.dev`
 4. Keep `photos-manifest.js` as the source of object keys and ensure each entry exactly matches R2 key casing.
-   - Example: `IMG_01440.jpg` is different from `IMG_01440.JPG`.
 5. Deploy this repo to Cloudflare Pages as a static site (no build command required).
-
-Optional hardening for production:
-
-1. Add an R2 custom domain in the bucket `Settings` and swap `window.PHOTOBOOK_MEDIA_BASE_URL` to that domain.
-2. Configure R2 CORS for your Pages host if you later need stricter cross-origin behavior (for example, canvas processing).
 
 ## Media loading order
 
