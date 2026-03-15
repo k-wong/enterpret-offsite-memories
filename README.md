@@ -1,13 +1,12 @@
 # Enterpret Offsite 2026 Photobook
 
-Retro desktop-style photobook with an ASCII animated background, hidden SoundCloud soundtrack, and a draggable/resizable media viewer.
+Retro desktop-style photobook with an ASCII animated background, beach sounds, and a media viewer. View at phuket.enterpret.com.
 
 ## Features
 
-- ASCII video background rendered from precomputed text frames.
-- macOS-classic inspired desktop UI with a `Memories` folder trigger.
+- ASCII video background.
+- macOS-classic inspired desktop UI with a `Memories` folder.
 - Photo + video viewer with keyboard navigation, draggable scrollbar, and window resize handles.
-- Browser compatibility fallbacks for HEIC/HEIF files (auto-tries same-name converted files).
 
 ## Project structure
 
