@@ -32,27 +32,6 @@ python3 -m http.server 8000
 
 Then visit `http://localhost:8000`.
 
-## Cloudflare R2 + Pages setup
-
-Use these settings for this project:
-
-1. In Cloudflare Dashboard, open `R2 Object Storage` -> create a bucket `phuket-photos` -> upload `photos/` -> `Settings`.
-2. Ensure `Public Development URL` is enabled.
-3. In `index.html`, set `window.PHOTOBOOK_MEDIA_BASE_URL` to your bucket base URL.
-   - Current value: `https://pub-9c487fda6d0a4dc8acd61702b4b52470.r2.dev`
-4. Keep `photos-manifest.js` as the source of object keys and ensure each entry exactly matches R2 key casing.
-5. Deploy this repo to Cloudflare Pages as a static site (no build command required).
-
-## Media loading order
-
-Photobook files are resolved in this order:
-
-1. `window.PHOTOBOOK_FILES` from `photos-manifest.js` (if present and non-empty)
-2. `photos/manifest.json` (if served)
-3. Server directory listing for `photos/` (if enabled by host)
-
-When `window.PHOTOBOOK_MEDIA_BASE_URL` is set, rendered media URLs are loaded from that base (for example, R2).
-
 ## Supported formats
 
 - Images: `avif`, `gif`, `heic`, `heif`, `jpg`, `jpeg`, `png`, `webp`
@@ -61,5 +40,4 @@ When `window.PHOTOBOOK_MEDIA_BASE_URL` is set, rendered media URLs are loaded fr
 Notes:
 
 - Codec support is browser-dependent.
-- If HEIC is not decodable in the browser, the app tries same-name fallbacks like `IMG_1234.jpg`, `IMG_1234.png`, etc.
 - Video playback is probed before rendering to avoid broken-player states.
